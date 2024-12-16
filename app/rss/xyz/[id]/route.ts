@@ -54,6 +54,7 @@ export const GET = async (_req: NextRequest, { params }: { params: { id: string 
     pubDate: Date;
     description: string;
     itunesItemImage: string | undefined;
+    isPrivateMedia: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }[] = pageData.props.pageProps.podcast.episodes.map((item: any) => ({
       title: item.title,
@@ -64,6 +65,7 @@ export const GET = async (_req: NextRequest, { params }: { params: { id: string 
       pubDate: new Date(item.pubDate),
       description: item.shownotes,
       itunesItemImage: (item.image || item.podcast?.image)?.middlePicUrl,
+      isPrivateMedia: item.isPrivateMedia ?? false,
   }));
 
   const podcast = {
@@ -96,6 +98,9 @@ export const GET = async (_req: NextRequest, { params }: { params: { id: string 
   });
 
   episodes.forEach((episode) => {
+    if (episode.isPrivateMedia) {
+      return;
+    }
     feed.item({
       title: episode.title,
       description: episode.description,
