@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { load } from 'cheerio';
 import rss from 'rss';
+import { requestNextData } from '@/app/xyz-tools';
 
 export const revalidate = 3600;
 // this empty generateStaticParams is necessary to make revalidate work
@@ -15,22 +15,7 @@ export const GET = async (_req: NextRequest, { params }: { params: { id: string 
 
   const link = `https://www.xiaoyuzhoufm.com/podcast/${params.id}`;
 
-  const res = await fetch(link, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-      'Cache-Control': 'max-age=0',
-    },
-  });
+  const res = await requestNextData(link);
 
   if (!res.ok) {
     return new Response(null, {
@@ -39,11 +24,8 @@ export const GET = async (_req: NextRequest, { params }: { params: { id: string 
     });
   }
 
-  const html = await res.text();
-
-  const $ = load(html);
-
-  const pageData = JSON.parse($('#__NEXT_DATA__').contents().first().text());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pageData = res.data as any;
 
   const episodes: {
     title: string;
