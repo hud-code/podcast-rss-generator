@@ -1,102 +1,69 @@
-import type { GetStaticProps, GetStaticPaths } from "next"
-import type { NextApiResponse } from "next"
-import RSS from "rss"
+import type { NextRequest } from "next/server"
+import rss from "rss"
 import { requestNextData } from "@/app/xyz-tools"
 
-const SELF_URL = process.env.SELF_URL
+export const revalidate = 3600
 
-interface Episode {
-  title: string
-  enclosureUrl: string
-  itunesDuration: number
-  enclosureType: string
-  link: string
-  pubDate: string
-  description: string
-  itunesItemImage: string | undefined
-  isPrivateMedia: boolean
-}
+// Remove SELF_URL if it's not needed elsewhere in your application
+// const SELF_URL = process.env.SELF_URL;
 
-interface Podcast {
-  title: string
-  link: string
-  itunesAuthor: string
-  itunesCategory: string
-  image: string
-  description: string
-}
+export const GET = async (_req: NextRequest, { params }: { params: { id: string } }) => {
+  console.log("Generate Xiaoyuzhou RSS for podcast id:", params.id)
 
-interface Props {
-  podcast: Podcast
-  episodes: Episode[]
-  id: string
-}
+  const link = `https://www.xiaoyuzhoufm.com/podcast/${params.id}`
 
-export const getStaticPaths: GetStaticPaths = async () => {
-  // You might want to pre-render some popular podcast IDs here
-  return {
-    paths: [],
-    fallback: "blocking",
+  const res = await requestNextData(link)
+
+  if (!res.ok) {
+    return new Response(null, {
+      status: res.status,
+      statusText: res.statusText,
+    })
   }
-}
 
-export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
-  const id = params?.id as string
-  const link = `https://www.xiaoyuzhoufm.com/podcast/${id}`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pageData = res.data as any
 
-  try {
-    const res = await requestNextData(link)
+  const episodes: {
+    title: string
+    enclosureUrl: string
+    itunesDuration: number
+    enclosureType: string
+    link: string
+    pubDate: Date
+    description: string
+    itunesItemImage: string | undefined
+    isPrivateMedia: boolean
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }[] = pageData.props.pageProps.podcast.episodes.map((item: any) => ({
+    title: item.title,
+    enclosureUrl: item.enclosure.url,
+    itunesDuration: item.duration,
+    enclosureType: "audio/mpeg",
+    link: `https://www.xiaoyuzhoufm.com/episode/${item.eid}`,
+    pubDate: new Date(item.pubDate),
+    description: item.shownotes,
+    itunesItemImage: (item.image || item.podcast?.image)?.middlePicUrl,
+    isPrivateMedia: item.isPrivateMedia ?? false,
+  }))
 
-    if (!res.ok) {
-      return { notFound: true }
-    }
-
-    const pageData = res.data as any
-
-    const podcast: Podcast = {
-      title: pageData.props.pageProps.podcast.title,
-      link,
-      itunesAuthor: pageData.props.pageProps.podcast.author,
-      itunesCategory: "",
-      image: pageData.props.pageProps.podcast.image.middlePicUrl,
-      description: pageData.props.pageProps.podcast.description,
-    }
-
-    const episodes: Episode[] = pageData.props.pageProps.podcast.episodes.map((item: any) => ({
-      title: item.title,
-      enclosureUrl: item.enclosure.url,
-      itunesDuration: item.duration,
-      enclosureType: "audio/mpeg",
-      link: `https://www.xiaoyuzhoufm.com/episode/${item.eid}`,
-      pubDate: new Date(item.pubDate).toUTCString(),
-      description: item.shownotes,
-      itunesItemImage: (item.image || item.podcast?.image)?.middlePicUrl,
-      isPrivateMedia: item.isPrivateMedia ?? false,
-    }))
-
-    return {
-      props: {
-        podcast,
-        episodes,
-        id,
-      },
-      revalidate: 3600, // Revalidate every hour
-    }
-  } catch (error) {
-    console.error("Error fetching podcast data:", error)
-    return { notFound: true }
+  const podcast = {
+    title: pageData.props.pageProps.podcast.title,
+    link,
+    itunesAuthor: pageData.props.pageProps.podcast.author,
+    itunesCategory: "",
+    image: pageData.props.pageProps.podcast.image.middlePicUrl,
+    description: pageData.props.pageProps.podcast.description,
   }
-}
 
-export default function PodcastRSS({ podcast, episodes, id }: Props) {
-  const feed = new RSS({
+  const feed = new rss({
     title: podcast.title,
     description: podcast.description ?? undefined,
-    feed_url: `${SELF_URL}/rss/xyz/${id}`,
-    site_url: podcast.link,
+    feed_url: `${_req.nextUrl.origin}/rss/xyz/${params.id}`, // Use request origin instead of SELF_URL
+    site_url: link,
     generator: "Podwise",
     image_url: podcast.image ?? undefined,
-    pubDate: episodes[0]?.pubDate,
+    pubDate: episodes[0].pubDate,
     ttl: 3600,
     custom_namespaces: {
       itunes: "http://www.itunes.com/dtds/podcast-1.0.dtd",
@@ -129,17 +96,11 @@ export default function PodcastRSS({ podcast, episodes, id }: Props) {
     })
   })
 
-  return feed.xml({ indent: true })
+  return new Response(feed.xml({ indent: true }), {
+    headers: {
+      "Content-Type": "application/rss+xml; charset=utf-8",
+    },
+  })
 }
 
-export const config = {
-  api: {
-    responseLimit: false,
-  },
-}
 
-// This is needed to set the correct content type for the RSS feed
-export function getServerSideProps({ res }: { res: NextApiResponse }) {
-  res.setHeader("Content-Type", "application/rss+xml; charset=utf-8")
-  return { props: {} }
-}
