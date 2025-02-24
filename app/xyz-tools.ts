@@ -49,9 +49,12 @@ export async function requestNextData<T>(url: string): Promise<
   // Extract the relevant podcast data from the pageData
   const podcastData = pageData.props.pageProps
 
+  console.log("Extracted podcast data:", JSON.stringify(podcastData, null, 2))
+
   return {
     ok: true,
     data: podcastData as T,
   }
 }
+
 
