@@ -23,13 +23,13 @@ interface Podcast {
   description: string
   author: string
   image: {
-    smallPicUrl: string
+    middlePicUrl: string
   }
+  episodes: Episode[]
 }
 
 interface PodcastData {
   podcast: Podcast
-  episodes: Episode[]
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -51,29 +51,29 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   console.log("Raw podcast data:", JSON.stringify(podcastData, null, 2))
 
-  if (!podcastData || !podcastData.podcast || !Array.isArray(podcastData.episodes)) {
+  if (!podcastData || !podcastData.podcast || !Array.isArray(podcastData.podcast.episodes)) {
     console.error("Invalid podcast data structure:", podcastData)
     return new Response("Invalid podcast data", { status: 500 })
   }
 
   console.log("Podcast title:", podcastData.podcast.title)
-  console.log("Number of episodes:", podcastData.episodes.length)
+  console.log("Number of episodes:", podcastData.podcast.episodes.length)
 
   const feed = new rss({
     title: podcastData.podcast.title,
     description: podcastData.podcast.description || "",
     feed_url: `${SELF_URL}/rss/xyz/${params.id}`,
     site_url: link,
-    image_url: podcastData.podcast.image?.smallPicUrl,
+    image_url: podcastData.podcast.image?.middlePicUrl,
     managingEditor: podcastData.podcast.author,
     webMaster: podcastData.podcast.author,
     copyright: podcastData.podcast.author,
     language: "zh-cn",
-    pubDate: podcastData.episodes.length > 0 ? new Date(podcastData.episodes[0].pubDate) : new Date(),
+    pubDate: podcastData.podcast.episodes.length > 0 ? new Date(podcastData.podcast.episodes[0].pubDate) : new Date(),
     ttl: 60,
   })
 
-  podcastData.episodes.forEach((episode: Episode) => {
+  podcastData.podcast.episodes.forEach((episode: Episode) => {
     feed.item({
       title: episode.title,
       description: episode.shownotes,
