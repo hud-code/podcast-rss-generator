@@ -12,7 +12,7 @@ export async function requestNextData<T>(url: string): Promise<
     }
 > {
   const res = await fetch(url, {
-    method: "GET",
+    next: { revalidate: 3600 }, // Match the revalidation time in the route
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
@@ -50,6 +50,7 @@ export async function requestNextData<T>(url: string): Promise<
     data: podcastData as T,
   }
 }
+
 
 
 
