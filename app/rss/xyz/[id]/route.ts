@@ -30,10 +30,11 @@ interface PodcastData {
   podcast: Podcast
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  console.log("Generate Xiaoyuzhou RSS for podcast id:", params.id)
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const id = params.id
+  console.log("Generate Xiaoyuzhou RSS for podcast id:", id)
 
-  const link = `https://www.xiaoyuzhoufm.com/podcast/${params.id}`
+  const link = `https://www.xiaoyuzhoufm.com/podcast/${id}`
 
   const res = await requestNextData<PodcastData>(link)
 
@@ -55,7 +56,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const feed = new rss({
     title: podcastData.podcast.title,
     description: podcastData.podcast.description || "",
-    feed_url: `${SELF_URL}/rss/xyz/${params.id}`,
+    feed_url: `${SELF_URL}/rss/xyz/${id}`,
     site_url: link,
     image_url: podcastData.podcast.image?.middlePicUrl,
     managingEditor: podcastData.podcast.author,
@@ -81,7 +82,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     })
   })
 
-  return new Response(feed.xml({ indent: true }), {
+  const feedXml = feed.xml({ indent: true })
+
+  return new Response(feedXml, {
     headers: {
       "Content-Type": "application/rss+xml; charset=utf-8",
     },
