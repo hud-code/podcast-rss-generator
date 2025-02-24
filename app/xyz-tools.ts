@@ -26,9 +26,7 @@ export async function requestNextData<T>(url: string): Promise<
       "Sec-Fetch-Mode": "navigate",
       "Sec-Fetch-Site": "none",
       "Sec-Fetch-User": "?1",
-      "Cache-Control": "max-age=0",
     },
-    // Remove the next: { revalidate: 3600 } option from here
   })
 
   if (!res.ok) {
@@ -52,5 +50,6 @@ export async function requestNextData<T>(url: string): Promise<
     data: podcastData as T,
   }
 }
+
 
 
