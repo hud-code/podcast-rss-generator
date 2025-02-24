@@ -2,9 +2,7 @@ import type { NextRequest } from "next/server"
 import rss from "rss"
 import { requestNextData } from "@/app/xyz-tools"
 
-export async function generateStaticParams() {
-  return []
-}
+export const revalidate = 3600 // Revalidate every hour
 
 const SELF_URL = process.env.SELF_URL
 
@@ -49,15 +47,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const podcastData = res.data
 
-  console.log("Raw podcast data:", JSON.stringify(podcastData, null, 2))
-
   if (!podcastData || !podcastData.podcast || !Array.isArray(podcastData.podcast.episodes)) {
     console.error("Invalid podcast data structure:", podcastData)
     return new Response("Invalid podcast data", { status: 500 })
   }
-
-  console.log("Podcast title:", podcastData.podcast.title)
-  console.log("Number of episodes:", podcastData.podcast.episodes.length)
 
   const feed = new rss({
     title: podcastData.podcast.title,
