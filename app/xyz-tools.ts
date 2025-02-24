@@ -28,9 +28,7 @@ export async function requestNextData<T>(url: string): Promise<
       "Sec-Fetch-User": "?1",
       "Cache-Control": "max-age=0",
     },
-    next: {
-      revalidate: 3600,
-    },
+    // Remove the next: { revalidate: 3600 } option from here
   })
 
   if (!res.ok) {
@@ -49,11 +47,10 @@ export async function requestNextData<T>(url: string): Promise<
   // Extract the relevant podcast data from the pageData
   const podcastData = pageData.props.pageProps
 
-  console.log("Extracted podcast data:", JSON.stringify(podcastData, null, 2))
-
   return {
     ok: true,
     data: podcastData as T,
   }
 }
+
 
