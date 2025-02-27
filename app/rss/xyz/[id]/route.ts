@@ -1,96 +1,107 @@
-import type { NextRequest } from "next/server"
-import rss from "rss"
-import { requestNextData } from "@/app/xyz-tools"
+import { NextRequest } from 'next/server';
+import rss from 'rss';
+import { requestNextData } from '@/app/xyz-tools';
 
-export const revalidate = 3600 // Revalidate every hour
-
-const SELF_URL = process.env.SELF_URL
-
-interface Episode {
-  eid: string
-  title: string
-  shownotes: string
-  pubDate: string
-  enclosure: {
-    url: string
-  }
+export const revalidate = 3600;
+// this empty generateStaticParams is necessary to make revalidate work
+export function generateStaticParams() {
+  return [];
 }
 
-interface Podcast {
-  title: string
-  description: string
-  author: string
-  image: {
-    middlePicUrl: string
-  }
-  episodes: Episode[]
-}
+const SELF_URL = process.env.SELF_URL;
 
-interface PodcastData {
-  podcast: Podcast
-}
+export const GET = async (_req: NextRequest, { params }: { params: { id: string }; }) => {
+  console.log('Generate Xiaoyuzhou RSS for podcast id:', params.id);
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id
-  console.log("Generate Xiaoyuzhou RSS for podcast id:", id)
+  const link = `https://www.xiaoyuzhoufm.com/podcast/${params.id}`;
 
-  const link = `https://www.xiaoyuzhoufm.com/podcast/${id}`
-
-  const res = await requestNextData<PodcastData>(link)
+  const res = await requestNextData(link);
 
   if (!res.ok) {
-    console.error("Error fetching podcast data:", res.status, res.statusText)
     return new Response(null, {
       status: res.status,
       statusText: res.statusText,
-    })
+    });
   }
 
-  const podcastData = res.data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pageData = res.data as any;
 
-  if (!podcastData || !podcastData.podcast || !Array.isArray(podcastData.podcast.episodes)) {
-    console.error("Invalid podcast data structure:", podcastData)
-    return new Response("Invalid podcast data", { status: 500 })
-  }
+  const episodes: {
+    title: string;
+    enclosureUrl: string;
+    itunesDuration: number;
+    enclosureType: string;
+    link: string;
+    pubDate: Date;
+    description: string;
+    itunesItemImage: string | undefined;
+    isPrivateMedia: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }[] = pageData.props.pageProps.podcast.episodes.map((item: any) => ({
+      title: item.title,
+      enclosureUrl: item.enclosure.url,
+      itunesDuration: item.duration,
+      enclosureType: 'audio/mpeg',
+      link: `https://www.xiaoyuzhoufm.com/episode/${item.eid}`,
+      pubDate: new Date(item.pubDate),
+      description: item.shownotes,
+      itunesItemImage: (item.image || item.podcast?.image)?.middlePicUrl,
+      isPrivateMedia: item.isPrivateMedia ?? false,
+  }));
+
+  const podcast = {
+    title: pageData.props.pageProps.podcast.title,
+    link,
+    itunesAuthor: pageData.props.pageProps.podcast.author,
+    itunesCategory: '',
+    image: pageData.props.pageProps.podcast.image.middlePicUrl,
+    description: pageData.props.pageProps.podcast.description,
+  };
 
   const feed = new rss({
-    title: podcastData.podcast.title,
-    description: podcastData.podcast.description || "",
-    feed_url: `${SELF_URL}/rss/xyz/${id}`,
+    title: podcast.title,
+    description: podcast.description ?? undefined,
+    feed_url: `${SELF_URL}/rss/xyz/${params.id}`,
     site_url: link,
-    image_url: podcastData.podcast.image?.middlePicUrl,
-    managingEditor: podcastData.podcast.author,
-    webMaster: podcastData.podcast.author,
-    copyright: podcastData.podcast.author,
-    language: "zh-cn",
-    pubDate: podcastData.podcast.episodes.length > 0 ? new Date(podcastData.podcast.episodes[0].pubDate) : new Date(),
-    ttl: 60,
-  })
+    generator: 'Podwise',
+    image_url: podcast.image ?? undefined,
+    pubDate: episodes[0].pubDate,
+    ttl: 3600,
+    custom_namespaces: {
+      'itunes': 'http://www.itunes.com/dtds/podcast-1.0.dtd'
+    },
+    custom_elements: [
+      { 'itunes:author': podcast.itunesAuthor ?? undefined },
+      { 'itunes:image': { _attr: { href: podcast.image ?? undefined } } },
+      { 'itunes:subtitle': podcast.description ?? undefined },
+      { 'itunes:summary': podcast.description ?? undefined },
+    ],
+  });
 
-  podcastData.podcast.episodes.forEach((episode: Episode) => {
+  episodes.forEach((episode) => {
+    if (episode.isPrivateMedia) {
+      return;
+    }
     feed.item({
       title: episode.title,
-      description: episode.shownotes,
-      url: `https://www.xiaoyuzhoufm.com/episode/${episode.eid}`,
-      guid: episode.eid,
-      author: podcastData.podcast.author,
-      date: new Date(episode.pubDate),
+      description: episode.description,
+      url: episode.link,
+      date: episode.pubDate,
       enclosure: {
-        url: episode.enclosure.url,
-        type: "audio/mpeg",
+        url: episode.enclosureUrl,
+        type: episode.enclosureType,
       },
-    })
-  })
+      custom_elements: [
+        { 'itunes:duration': episode.itunesDuration },
+        { 'itunes:image': { _attr: { href: episode.itunesItemImage ?? undefined } } },
+      ],
+    });
+  });
 
-  const feedXml = feed.xml({ indent: true })
-
-  return new Response(feedXml, {
+  return new Response(feed.xml({ indent: true }), {
     headers: {
-      "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      'Content-Type': 'application/rss+xml; charset=utf-8',
     },
-  })
+  });
 }
-
-
-
